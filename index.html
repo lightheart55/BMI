@@ -88,7 +88,7 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useMemo } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { Activity, Download, Share2, Info, X, Minus, Plus, Ruler, Weight, Lightbulb } from 'lucide-react';
+        import { Activity, Download, Info, X, Minus, Plus, Ruler, Weight, Lightbulb } from 'lucide-react';
 
         // --- CONSTANTS & HELPERS ---
         const calculateAsianBmi = (weight, height) => {
@@ -145,7 +145,8 @@
                             <span className="text-sm font-bold opacity-60">{unit}</span>
                         </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    {/* Updated gap-2 for better fit on small screens */}
+                    <div className="flex items-center gap-2">
                         <button onClick={() => onChange(Math.max(min, value - 1))} className="w-10 h-10 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-slate-100 active:scale-90 transition-all">
                             <Minus size={20} />
                         </button>
@@ -217,36 +218,6 @@
                 }
             };
 
-            const handleShare = async () => {
-                // Lấy toàn bộ mã nguồn HTML hiện tại
-                const htmlContent = document.documentElement.outerHTML;
-                
-                // MẤU CHỐT: Tạo Blob nhưng đặt tên file là .apk khi chia sẻ
-                // Lưu ý: Android sẽ coi đây là file cài đặt, dù nội dung là HTML.
-                // Điều này đáp ứng yêu cầu "chia sẻ ra file apk" của người dùng.
-                const blob = new Blob([htmlContent], { type: 'application/vnd.android.package-archive' });
-                const file = new File([blob], 'BMI_Pro.apk', { type: 'application/vnd.android.package-archive' });
-
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    try {
-                        await navigator.share({
-                            files: [file],
-                            title: 'BMI Pro',
-                            text: 'Cài đặt ứng dụng BMI Pro',
-                        });
-                    } catch (e) { console.log('Share failed', e); }
-                } else {
-                    try {
-                        // Fallback link sharing
-                        await navigator.share({
-                            title: 'BMI Pro',
-                            text: 'App tính BMI chuẩn Châu Á',
-                            url: window.location.href
-                        });
-                    } catch (e) {}
-                }
-            };
-
             return (
                 <div className="w-full max-w-md flex flex-col h-full">
                     {/* Header */}
@@ -266,15 +237,13 @@
                                     <Download size={14} /> Cài đặt
                                 </button>
                             )}
-                            <button onClick={handleShare} className="bg-white text-slate-500 p-2.5 rounded-full shadow-sm hover:text-green-600 active:scale-95 transition-all" title="Chia sẻ App">
-                                <Share2 size={20} />
-                            </button>
                         </div>
                     </header>
 
                     {/* Inputs */}
-                    <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-6 mb-6 border border-slate-100 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -mr-16 -mt-16 opacity-30" style={{backgroundColor: result.color}}></div>
+                    {/* Reduced padding p-6 to p-4 to fix clipped content */}
+                    <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-4 mb-6 border border-slate-100 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -mr-16 -mt-16 opacity-30 pointer-events-none" style={{backgroundColor: result.color}}></div>
                         <InputCard label="Chiều cao" icon={Ruler} value={height} unit="cm" min={100} max={250} onChange={setHeight} color={result.color} />
                         <div className="h-px bg-slate-100 mb-6"></div>
                         <InputCard label="Cân nặng" icon={Weight} value={weight} unit="kg" min={30} max={200} onChange={setWeight} color={result.color} />
