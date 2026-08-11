@@ -3,19 +3,26 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#ffffff" />
-    <meta name="description" content="Ứng dụng tính BMI chuẩn Y khoa dành cho người Châu Á">
-    
+    <meta name="theme-color" content="#22c55e" />
+    <meta name="description" content="Ứng dụng tính BMI chuẩn Y khoa dành cho người Châu Á. Miễn phí, offline, không quảng cáo." />
+
+    <!-- Open Graph / Social -->
+    <meta property="og:title" content="BMI Pro - Theo Dõi Sức Khỏe Châu Á" />
+    <meta property="og:description" content="Tính chỉ số BMI theo chuẩn Y khoa Châu Á (WHO WPRO 2000). Miễn phí, hoạt động offline." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://bmi-two-black.vercel.app" />
+    <meta name="twitter:card" content="summary" />
+
     <!-- PWA Settings for Android (WebAPK support) -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="application-name" content="BMI Pro">
-    
+
     <!-- PWA Settings for iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="BMI Pro">
 
-    <title>BMI Pro - Theo Dõi Sức Khỏe</title>
+    <title>BMI Pro - Theo Dõi Sức Khỏe Châu Á</title>
 
     <!-- Placeholder for Manifest & Icons -->
     <link rel="manifest" id="manifest-placeholder">
@@ -25,21 +32,18 @@
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- React Dependencies via ESM -->
+
+    <!-- React Dependencies via ESM (React 18 only — fixed version conflict) -->
     <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@18.2.0",
     "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-    "lucide-react": "https://esm.sh/lucide-react@0.294.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-    "recharts": "https://esm.sh/recharts@^3.6.0"
+    "lucide-react": "https://esm.sh/lucide-react@0.294.0?deps=react@18.2.0",
+    "recharts": "https://esm.sh/recharts@2.12.7?deps=react@18.2.0,react-dom@18.2.0"
   }
 }
-</script>
+    </script>
 
     <script>
       tailwind.config = {
@@ -53,21 +57,23 @@
             },
             animation: {
               'slide-up': 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+              'fade-in': 'fadeIn 0.4s ease-out',
             },
             keyframes: {
-              slideUp: { '0%': { transform: 'translateY(40px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } }
+              slideUp: { '0%': { transform: 'translateY(40px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
+              fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } }
             }
           }
         }
       }
     </script>
-    
+
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
+
     <style>
       body { background-color: #f8fafc; -webkit-font-smoothing: antialiased; overscroll-behavior-y: contain; user-select: none; }
       * { -webkit-tap-highlight-color: transparent; outline: none; }
-      
+
       /* Range Slider Styling */
       input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
       input[type=range]::-webkit-slider-thumb {
@@ -79,6 +85,14 @@
       input[type=range]::-webkit-slider-runnable-track {
         width: 100%; height: 4px; cursor: pointer; background: #e2e8f0; border-radius: 2px;
       }
+
+      /* Hide number input spinners */
+      input[type=number]::-webkit-inner-spin-button,
+      input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+      input[type=number] { -moz-appearance: textfield; }
+
+      /* Recharts custom tooltip */
+      .custom-tooltip { background: white; border-radius: 12px; padding: 10px 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
     </style>
 </head>
 <body class="min-h-screen bg-slate-50 py-6 px-4 font-sans text-slate-800 flex flex-col items-center">
@@ -86,31 +100,34 @@
 
     <!-- MAIN REACT APP LOGIC -->
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useMemo } from 'react';
+        import React, { useState, useEffect, useMemo, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { Activity, Download, Info, X, Minus, Plus, Ruler, Weight, Lightbulb } from 'lucide-react';
+        import { Activity, Download, Info, X, Minus, Plus, Ruler, Weight, Lightbulb, HelpCircle, Save, Share2, Trash2, ChevronRight, ChevronLeft, Smartphone, TrendingUp } from 'lucide-react';
+        import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
-        // --- CONSTANTS & HELPERS ---
+        // ============================================================
+        // CONSTANTS & HELPERS
+        // ============================================================
         const calculateAsianBmi = (weight, height) => {
             const h = height / 100;
             const bmi = parseFloat((weight / (h * h)).toFixed(1));
             let category = '', color = '', advice = '';
-            
+
             if (bmi < 18.5) {
                 category = 'Nhẹ cân'; color = '#3b82f6';
-                advice = 'Cần bổ sung dinh dưỡng, tăng cường đạm và tinh bột.';
+                advice = 'Cần bổ sung dinh dưỡng, tăng cường đạm và tinh bột. Nên ăn đủ 3 bữa chính và thêm bữa phụ.';
             } else if (bmi < 23) {
                 category = 'Bình thường'; color = '#22c55e';
-                advice = 'Tuyệt vời! Hãy duy trì chế độ ăn uống và vận động hiện tại.';
+                advice = 'Tuyệt vời! Hãy duy trì chế độ ăn uống và vận động hiện tại. Tập thể dục ít nhất 30 phút/ngày.';
             } else if (bmi < 25) {
                 category = 'Thừa cân'; color = '#eab308';
-                advice = 'Tiền béo phì. Hạn chế đường, mỡ và tăng vận động.';
+                advice = 'Tiền béo phì. Hạn chế đường, mỡ và tăng vận động. Nên đi bộ 10.000 bước/ngày.';
             } else if (bmi < 30) {
                 category = 'Béo phì độ I'; color = '#f97316';
-                advice = 'Nên thực hiện chế độ giảm cân khoa học, ăn nhiều rau xanh.';
+                advice = 'Nên thực hiện chế độ giảm cân khoa học, ăn nhiều rau xanh. Hạn chế đồ chiên, nước ngọt.';
             } else {
                 category = 'Béo phì độ II'; color = '#ef4444';
-                advice = 'Cảnh báo sức khỏe! Cần tham khảo ý kiến bác sĩ.';
+                advice = 'Cảnh báo sức khỏe! Cần tham khảo ý kiến bác sĩ và chuyên gia dinh dưỡng ngay.';
             }
             return { bmi, category, color, advice };
         };
@@ -122,41 +139,285 @@
             return `rgba(${r}, ${g}, ${b}, ${alpha})`;
         };
 
-        // --- COMPONENTS ---
-        const InputCard = ({ label, icon: Icon, value, unit, min, max, onChange, color }) => {
-            const pct = ((value - min) / (max - min)) * 100;
+        const getIdealWeight = (height) => {
+            const h = height / 100;
+            return {
+                min: parseFloat((18.5 * h * h).toFixed(1)),
+                max: parseFloat((23 * h * h).toFixed(1))
+            };
+        };
+
+        // ============================================================
+        // CUSTOM HOOKS
+        // ============================================================
+        const useAnimatedNumber = (target, duration = 400) => {
+            const [display, setDisplay] = useState(target);
+            const frameRef = useRef(null);
+            const prevRef = useRef(target);
+
+            useEffect(() => {
+                const start = prevRef.current;
+                const startTime = performance.now();
+
+                const animate = (time) => {
+                    const elapsed = time - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+                    const current = parseFloat((start + (target - start) * eased).toFixed(1));
+                    setDisplay(current);
+
+                    if (progress < 1) {
+                        frameRef.current = requestAnimationFrame(animate);
+                    } else {
+                        prevRef.current = target;
+                    }
+                };
+
+                frameRef.current = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(frameRef.current);
+            }, [target, duration]);
+
+            return display;
+        };
+
+        // ============================================================
+        // HISTORY HELPERS (localStorage)
+        // ============================================================
+        const HISTORY_KEY = 'bmi_history';
+        const MAX_HISTORY = 50;
+
+        const loadHistory = () => {
+            try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
+            catch { return []; }
+        };
+
+        const saveEntryToHistory = (entry) => {
+            const history = loadHistory();
+            history.unshift(entry);
+            if (history.length > MAX_HISTORY) history.pop();
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+            return history;
+        };
+
+        const removeEntryFromHistory = (index) => {
+            const history = loadHistory();
+            history.splice(index, 1);
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+            return history;
+        };
+
+        const clearAllHistory = () => {
+            localStorage.removeItem(HISTORY_KEY);
+            return [];
+        };
+
+        // ============================================================
+        // ONBOARDING MODAL
+        // ============================================================
+        const OnboardingModal = ({ onClose }) => {
+            const [step, setStep] = useState(0);
+
+            const steps = [
+                {
+                    icon: <Activity size={40} className="text-green-500" />,
+                    title: 'Chào mừng đến BMI Pro',
+                    content: (
+                        <div className="space-y-3 text-sm text-slate-600">
+                            <p>Ứng dụng tính chỉ số <strong>BMI theo chuẩn Y khoa Châu Á</strong> (WHO WPRO 2000) — chính xác hơn cho người Việt Nam.</p>
+                            <div className="space-y-2 bg-blue-50 border border-blue-100 rounded-xl p-3">
+                                <p className="font-bold text-blue-800 text-xs uppercase tracking-wider mb-1">🎉 Mới cập nhật (v2.0)</p>
+                                <ul className="list-disc list-inside text-xs space-y-1 text-slate-700">
+                                    <li>Biểu đồ lịch sử BMI</li>
+                                    <li>Khoảng cân nặng lý tưởng</li>
+                                    <li>Nhập số thập phân</li>
+                                </ul>
+                            </div>
+                            <div className="space-y-2 bg-green-50 rounded-xl p-4">
+                                <div className="flex items-center gap-2"><span className="text-green-500 font-bold">✓</span> Miễn phí, không quảng cáo</div>
+                                <div className="flex items-center gap-2"><span className="text-green-500 font-bold">✓</span> Không thu thập dữ liệu cá nhân</div>
+                                <div className="flex items-center gap-2"><span className="text-green-500 font-bold">✓</span> Hoạt động offline sau khi cài</div>
+                                <div className="flex items-center gap-2"><span className="text-green-500 font-bold">✓</span> Cài được như ứng dụng gốc</div>
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    icon: <Smartphone size={40} className="text-blue-500" />,
+                    title: 'Cài đặt ra màn hình',
+                    content: (
+                        <div className="space-y-4 text-sm text-slate-600">
+                            <div className="bg-blue-50 rounded-xl p-4">
+                                <p className="font-bold text-blue-800 mb-2">📱 Android (Chrome):</p>
+                                <ol className="space-y-1.5 list-decimal list-inside text-slate-600">
+                                    <li>Mở <strong>Chrome</strong>, dán link:<br/><code className="bg-blue-100 px-2 py-0.5 rounded text-xs font-mono select-text">bmi-two-black.vercel.app</code></li>
+                                    <li>Nhấn nút <strong>"Cài đặt"</strong> trên trang</li>
+                                    <li>Hoặc nhấn <strong>⋮ → "Thêm vào MH chính"</strong></li>
+                                </ol>
+                            </div>
+                            <div className="bg-slate-50 rounded-xl p-4">
+                                <p className="font-bold text-slate-800 mb-2">🍎 iPhone (Safari):</p>
+                                <ol className="space-y-1.5 list-decimal list-inside text-slate-600">
+                                    <li>Mở <strong>Safari</strong>, dán link ở trên</li>
+                                    <li>Nhấn nút <strong>Chia sẻ</strong> ⬆️ (thanh dưới cùng)</li>
+                                    <li>Chọn <strong>"Thêm vào MH chính"</strong></li>
+                                </ol>
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    icon: <Ruler size={40} className="text-purple-500" />,
+                    title: 'Cách sử dụng',
+                    content: (
+                        <div className="space-y-3 text-sm text-slate-600">
+                            <p className="font-medium">Có <strong>3 cách</strong> nhập chiều cao & cân nặng:</p>
+                            <div className="space-y-3">
+                                <div className="flex gap-3 items-start bg-purple-50 rounded-xl p-3">
+                                    <span className="bg-purple-200 text-purple-700 rounded-lg w-8 h-8 flex items-center justify-center font-bold flex-shrink-0 text-sm">①</span>
+                                    <div><strong>Nhấn vào số</strong> → gõ trực tiếp bằng bàn phím<br/><span className="text-xs text-slate-400">VD: 165.5 cm, 60.0 kg</span></div>
+                                </div>
+                                <div className="flex gap-3 items-start bg-orange-50 rounded-xl p-3">
+                                    <span className="bg-orange-200 text-orange-700 rounded-lg w-8 h-8 flex items-center justify-center font-bold flex-shrink-0 text-sm">②</span>
+                                    <div><strong>Kéo thanh trượt</strong> sang trái/phải để tăng giảm giá trị</div>
+                                </div>
+                                <div className="flex gap-3 items-start bg-teal-50 rounded-xl p-3">
+                                    <span className="bg-teal-200 text-teal-700 rounded-lg w-8 h-8 flex items-center justify-center font-bold flex-shrink-0 text-sm">③</span>
+                                    <div><strong>Nhấn nút ➖ ➕</strong> để tăng/giảm từng 0.5 đơn vị</div>
+                                </div>
+                            </div>
+                            <p className="text-center text-green-600 font-bold mt-2">→ Kết quả BMI tự động cập nhật ngay!</p>
+                        </div>
+                    )
+                }
+            ];
+
             return (
-                <div className="mb-6">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+                     role="dialog" aria-modal="true" aria-label="Hướng dẫn sử dụng">
+                    <div className="bg-white rounded-3xl p-6 w-full max-w-sm relative shadow-2xl">
+                        <button onClick={onClose}
+                                className="absolute top-4 right-4 text-slate-300 hover:text-slate-500 transition-colors"
+                                aria-label="Đóng hướng dẫn">
+                            <X size={20} />
+                        </button>
+
+                        {/* Step Content */}
+                        <div className="flex justify-center mb-4 mt-2">{steps[step].icon}</div>
+                        <h3 className="text-lg font-bold text-slate-800 text-center mb-4">{steps[step].title}</h3>
+                        {steps[step].content}
+
+                        {/* Step Indicators */}
+                        <div className="flex justify-center gap-2 mt-6 mb-4">
+                            {steps.map((_, i) => (
+                                <div key={i}
+                                     className={`h-2 rounded-full transition-all duration-300 ${i === step ? 'w-6 bg-green-500' : 'w-2 bg-slate-200'}`} />
+                            ))}
+                        </div>
+
+                        {/* Navigation */}
+                        <div className="flex gap-3">
+                            {step > 0 && (
+                                <button onClick={() => setStep(step - 1)}
+                                        className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-1">
+                                    <ChevronLeft size={16} /> Quay lại
+                                </button>
+                            )}
+                            {step < steps.length - 1 ? (
+                                <button onClick={() => setStep(step + 1)}
+                                        className="flex-1 py-3 rounded-xl bg-green-500 text-white font-bold text-sm hover:bg-green-600 transition-colors flex items-center justify-center gap-1">
+                                    Tiếp theo <ChevronRight size={16} />
+                                </button>
+                            ) : (
+                                <button onClick={onClose}
+                                        className="flex-1 py-3 rounded-xl bg-green-500 text-white font-bold text-sm hover:bg-green-600 transition-colors">
+                                    ✓ Bắt đầu sử dụng
+                                </button>
+                            )}
+                        </div>
+                        {/* Author */}
+                        <div className="mt-5 text-center">
+                            <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">© 2026 Dr. Nguyen Minh Tam</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============================================================
+        // INPUT CARD COMPONENT (supports decimal, haptic feedback)
+        // ============================================================
+        const InputCard = ({ label, icon: Icon, value, unit, min, max, step: stepSize = 0.5, onChange, color }) => {
+            const [localValue, setLocalValue] = useState(value.toString());
+
+            useEffect(() => {
+                setLocalValue(value.toString());
+            }, [value]);
+
+            const pct = ((value - min) / (max - min)) * 100;
+
+            const handleSliderChange = (e) => {
+                onChange(parseFloat(e.target.value));
+                if (navigator.vibrate) navigator.vibrate(5);
+            };
+
+            const nudge = (direction) => {
+                const next = parseFloat((value + direction * stepSize).toFixed(1));
+                onChange(Math.min(max, Math.max(min, next)));
+                if (navigator.vibrate) navigator.vibrate(5);
+            };
+
+            const handleInputChange = (e) => {
+                setLocalValue(e.target.value);
+                const v = parseFloat(e.target.value);
+                if (!isNaN(v) && v >= min && v <= max) {
+                    onChange(v);
+                }
+            };
+
+            const handleInputBlur = () => {
+                let v = parseFloat(localValue);
+                if (isNaN(v)) v = min;
+                const clamped = Math.min(max, Math.max(min, parseFloat(v.toFixed(1))));
+                setLocalValue(clamped.toString());
+                onChange(clamped);
+            };
+
+            return (
+                <div className="mb-6" role="group" aria-label={`Nhập ${label}`}>
                     <div className="flex justify-between items-end mb-4">
                         <label className="flex items-center gap-2 text-sm font-bold text-slate-500 uppercase tracking-wider">
-                            <Icon size={16} /> {label}
+                            <Icon size={16} aria-hidden="true" /> {label}
                         </label>
                         <div className="flex items-baseline gap-1" style={{color}}>
-                            <input 
-                                type="number" 
-                                value={value} 
-                                onChange={(e) => {
-                                    let v = parseInt(e.target.value);
-                                    if(!isNaN(v)) onChange(Math.min(max, Math.max(0, v)));
-                                }}
-                                className="w-16 text-right text-3xl font-extrabold bg-transparent border-b border-dashed text-center focus:outline-none"
+                            <input
+                                type="number"
+                                value={localValue}
+                                step={stepSize}
+                                onChange={handleInputChange}
+                                onBlur={handleInputBlur}
+                                className="w-20 text-right text-3xl font-extrabold bg-transparent border-b border-dashed text-center focus:outline-none"
                                 style={{borderColor: color + '40'}}
+                                aria-label={`${label} (${unit})`}
                             />
                             <span className="text-sm font-bold opacity-60">{unit}</span>
                         </div>
                     </div>
-                    {/* Updated gap-2 for better fit on small screens */}
                     <div className="flex items-center gap-2">
-                        <button onClick={() => onChange(Math.max(min, value - 1))} className="w-10 h-10 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-slate-100 active:scale-90 transition-all">
+                        <button onClick={() => nudge(-1)}
+                                className="w-10 h-10 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-slate-100 active:scale-90 transition-all"
+                                aria-label={`Giảm ${label}`}>
                             <Minus size={20} />
                         </button>
-                        <input 
-                            type="range" min={min} max={max} value={value} 
-                            onChange={(e) => onChange(Number(e.target.value))}
+                        <input
+                            type="range" min={min} max={max} value={value} step={stepSize}
+                            onChange={handleSliderChange}
                             style={{color: color, background: `linear-gradient(to right, ${color} ${pct}%, #e2e8f0 ${pct}%)`}}
                             className="flex-1 h-1 rounded-lg appearance-none cursor-pointer"
+                            aria-label={`Thanh trượt ${label}`}
                         />
-                        <button onClick={() => onChange(Math.min(max, value + 1))} className="w-10 h-10 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-slate-100 active:scale-90 transition-all">
+                        <button onClick={() => nudge(1)}
+                                className="w-10 h-10 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-slate-100 active:scale-90 transition-all"
+                                aria-label={`Tăng ${label}`}>
                             <Plus size={20} />
                         </button>
                     </div>
@@ -164,51 +425,198 @@
             );
         };
 
+        // ============================================================
+        // BMI SCALE (fixed label alignment)
+        // ============================================================
         const BmiScale = ({ bmi, activeColor }) => {
             const minScale = 15;
             const maxScale = 35;
             const safeBmi = Math.min(Math.max(bmi, minScale), maxScale);
             const positionPercent = ((safeBmi - minScale) / (maxScale - minScale)) * 100;
 
+            const markers = [
+                { value: 18.5, pct: ((18.5 - minScale) / (maxScale - minScale)) * 100 },
+                { value: 23,   pct: ((23 - minScale)   / (maxScale - minScale)) * 100 },
+                { value: 25,   pct: ((25 - minScale)   / (maxScale - minScale)) * 100 },
+                { value: 30,   pct: ((30 - minScale)   / (maxScale - minScale)) * 100 },
+            ];
+
             return (
-                <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 mb-4">
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 mb-4"
+                     role="img" aria-label={`Thang đo BMI, vị trí hiện tại: ${bmi}`}>
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Thang đo tham chiếu</h3>
                     <div className="relative h-4 w-full rounded-full overflow-hidden flex mb-2">
-                        <div className="h-full bg-blue-500 flex-[3.5]"></div>
-                        <div className="h-full bg-green-500 flex-[4.5]"></div>
-                        <div className="h-full bg-yellow-500 flex-[2]"></div>
-                        <div className="h-full bg-orange-500 flex-[5]"></div>
-                        <div className="h-full bg-red-500 flex-[5]"></div>
+                        <div className="h-full bg-blue-500" style={{flex: '3.5'}}></div>
+                        <div className="h-full bg-green-500" style={{flex: '4.5'}}></div>
+                        <div className="h-full bg-yellow-500" style={{flex: '2'}}></div>
+                        <div className="h-full bg-orange-500" style={{flex: '5'}}></div>
+                        <div className="h-full bg-red-500" style={{flex: '5'}}></div>
                     </div>
                     <div className="relative w-full h-2">
-                        <div className="absolute top-0 -mt-1 w-0.5 h-4 bg-slate-800 transition-all duration-500" 
-                             style={{left: `${positionPercent}%`}}>
-                            <div className="w-3 h-3 bg-slate-800 rounded-full -ml-[5px] -mt-1 ring-2 ring-white" style={{backgroundColor: activeColor}}></div>
+                        <div className="absolute top-0 -mt-1 w-0.5 h-4 transition-all duration-500"
+                             style={{left: `${positionPercent}%`, backgroundColor: activeColor}}>
+                            <div className="w-3 h-3 rounded-full -ml-[5px] -mt-1 ring-2 ring-white"
+                                 style={{backgroundColor: activeColor}}></div>
                         </div>
                     </div>
-                    <div className="flex justify-between text-[10px] font-bold text-slate-400 font-mono mt-2">
-                        <span>15</span><span className="pl-2">18.5</span><span className="pl-1">23</span><span>25</span><span className="pl-4">30</span><span>35</span>
+                    <div className="relative w-full mt-2 h-4">
+                        <span className="absolute text-[10px] font-bold text-slate-400 font-mono" style={{left: '0%'}}>15</span>
+                        {markers.map(m => (
+                            <span key={m.value}
+                                  className="absolute text-[10px] font-bold text-slate-400 font-mono"
+                                  style={{left: `${m.pct}%`, transform: 'translateX(-50%)'}}>
+                                {m.value}
+                            </span>
+                        ))}
+                        <span className="absolute text-[10px] font-bold text-slate-400 font-mono right-0">35</span>
                     </div>
                 </div>
             );
         };
 
-        // --- MAIN APP COMPONENT ---
+        // ============================================================
+        // RECHARTS CUSTOM TOOLTIP
+        // ============================================================
+        const ChartTooltip = ({ active, payload }) => {
+            if (active && payload && payload.length) {
+                const d = payload[0].payload;
+                return (
+                    <div className="custom-tooltip">
+                        <p className="text-xs font-bold text-slate-800">{d.dateLabel}</p>
+                        <p className="text-sm font-bold" style={{color: payload[0].stroke}}>BMI: {d.bmi}</p>
+                        <p className="text-xs text-slate-400">{d.height}cm · {d.weight}kg</p>
+                    </div>
+                );
+            }
+            return null;
+        };
+
+        // ============================================================
+        // HISTORY SECTION (AreaChart + List)
+        // ============================================================
+        const HistorySection = ({ history, onDelete, onClear, activeColor }) => {
+            const [expanded, setExpanded] = useState(false);
+
+            if (history.length === 0) return null;
+
+            const chartData = [...history].reverse().map(h => ({
+                ...h,
+                dateLabel: new Date(h.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                dateShort: new Date(h.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+            }));
+
+            return (
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 mt-4 animate-slide-up">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                            <TrendingUp size={14} aria-hidden="true" /> Lịch sử BMI ({history.length})
+                        </h3>
+                        <div className="flex gap-3">
+                            {history.length > 3 && (
+                                <button onClick={() => setExpanded(!expanded)}
+                                        className="text-xs font-bold text-blue-500 hover:text-blue-700 transition-colors">
+                                    {expanded ? 'Thu gọn' : 'Xem tất cả'}
+                                </button>
+                            )}
+                            <button onClick={onClear}
+                                    className="text-xs font-bold text-red-400 hover:text-red-600 transition-colors flex items-center gap-1">
+                                <Trash2 size={12} /> Xóa hết
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Chart — only show when ≥ 2 entries */}
+                    {history.length >= 2 && (
+                        <div className="h-40 mb-4">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                                    <defs>
+                                        <linearGradient id="bmiGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor={activeColor} stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor={activeColor} stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <XAxis dataKey="dateShort" tick={{fontSize: 10}} stroke="#94a3b8" />
+                                    <YAxis domain={['auto', 'auto']} tick={{fontSize: 10}} stroke="#94a3b8" />
+                                    <Tooltip content={<ChartTooltip />} />
+                                    <ReferenceLine y={18.5} stroke="#3b82f6" strokeDasharray="3 3" strokeOpacity={0.4} label="" />
+                                    <ReferenceLine y={23} stroke="#eab308" strokeDasharray="3 3" strokeOpacity={0.4} label="" />
+                                    <Area type="monotone" dataKey="bmi" stroke={activeColor} strokeWidth={2.5}
+                                          fill="url(#bmiGrad)"
+                                          dot={{ fill: '#fff', stroke: activeColor, strokeWidth: 2, r: 4 }}
+                                          activeDot={{ r: 6, fill: activeColor }} />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
+
+                    {/* Entry List */}
+                    <div className="space-y-2">
+                        {(expanded ? history : history.slice(0, 3)).map((entry, i) => {
+                            const r = calculateAsianBmi(entry.weight, entry.height);
+                            return (
+                                <div key={entry.date + i}
+                                     className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3 group hover:bg-slate-100 transition-colors">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{backgroundColor: r.color}}></div>
+                                        <div>
+                                            <span className="text-sm font-bold text-slate-700">BMI {entry.bmi}</span>
+                                            <span className="text-xs text-slate-400 ml-2">{entry.height}cm · {entry.weight}kg</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs text-slate-400">
+                                            {new Date(entry.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                                        </span>
+                                        <button onClick={() => onDelete(i)}
+                                                className="text-slate-300 hover:text-red-500 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                                                aria-label="Xóa mục này">
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        };
+
+        // ============================================================
+        // MAIN APP COMPONENT
+        // ============================================================
         const App = () => {
             const [height, setHeight] = useState(165);
             const [weight, setWeight] = useState(60);
             const [deferredPrompt, setDeferredPrompt] = useState(null);
             const [showCitation, setShowCitation] = useState(false);
+            const [showOnboarding, setShowOnboarding] = useState(false);
+            const [history, setHistory] = useState(loadHistory);
+            const [saveFlash, setSaveFlash] = useState(false);
 
             const result = useMemo(() => calculateAsianBmi(weight, height), [weight, height]);
+            const idealWeight = useMemo(() => getIdealWeight(height), [height]);
+            const animatedBmi = useAnimatedNumber(result.bmi);
 
+            // Effect 1: Background color (runs when color changes)
             useEffect(() => {
                 document.body.style.backgroundColor = hexToRgba(result.color, 0.05);
-                window.addEventListener('beforeinstallprompt', (e) => {
+            }, [result.color]);
+
+            // Effect 2: PWA install prompt (runs once, with cleanup)
+            useEffect(() => {
+                const handler = (e) => {
                     e.preventDefault();
                     setDeferredPrompt(e);
-                });
-            }, [result.color]);
+                };
+                window.addEventListener('beforeinstallprompt', handler);
+                return () => window.removeEventListener('beforeinstallprompt', handler);
+            }, []);
+
+            // Effect 3: Always show onboarding when app starts
+            useEffect(() => {
+                setShowOnboarding(true);
+            }, []);
 
             const handleInstall = async () => {
                 if (deferredPrompt) {
@@ -218,58 +626,120 @@
                 }
             };
 
+            const handleSave = () => {
+                const entry = { date: new Date().toISOString(), bmi: result.bmi, height, weight };
+                setHistory(saveEntryToHistory(entry));
+                setSaveFlash(true);
+                if (navigator.vibrate) navigator.vibrate([10, 50, 10]);
+                setTimeout(() => setSaveFlash(false), 1500);
+            };
+
+            const handleShare = async () => {
+                const text = `Chỉ số BMI của tôi: ${result.bmi} (${result.category})\nChiều cao: ${height}cm | Cân nặng: ${weight}kg\nCân nặng lý tưởng: ${idealWeight.min}–${idealWeight.max}kg\n\nKiểm tra BMI tại: bmi-two-black.vercel.app`;
+
+                if (navigator.share) {
+                    try { await navigator.share({ title: 'BMI Pro - Kết quả', text }); }
+                    catch {}
+                } else {
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        alert('Đã sao chép kết quả vào clipboard!');
+                    } catch {}
+                }
+            };
+
             return (
                 <div className="w-full max-w-md flex flex-col h-full">
-                    {/* Header */}
+                    {/* ===== HEADER ===== */}
                     <header className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-3">
                             <div className="bg-white p-2 rounded-xl shadow-sm" style={{color: result.color}}>
-                                <Activity size={24} />
+                                <Activity size={24} aria-hidden="true" />
                             </div>
                             <div>
-                                <h1 className="text-2xl font-bold text-slate-800 leading-none">BMI <span style={{color: result.color}}>Pro</span></h1>
+                                <h1 className="text-2xl font-bold text-slate-800 leading-none">
+                                    BMI <span style={{color: result.color}}>Pro</span>
+                                </h1>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sức khỏe Châu Á</span>
                             </div>
                         </div>
                         <div className="flex gap-2">
+                            <button onClick={() => setShowOnboarding(true)}
+                                    className="w-10 h-10 rounded-xl bg-white shadow-sm text-slate-400 flex items-center justify-center hover:text-slate-600 hover:shadow-md transition-all"
+                                    aria-label="Xem hướng dẫn sử dụng">
+                                <HelpCircle size={18} />
+                            </button>
                             {deferredPrompt && (
-                                <button onClick={handleInstall} className="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-2 rounded-full font-bold text-xs hover:bg-green-200 transition-colors animate-pulse">
+                                <button onClick={handleInstall}
+                                        className="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-2 rounded-full font-bold text-xs hover:bg-green-200 transition-colors animate-pulse">
                                     <Download size={14} /> Cài đặt
                                 </button>
                             )}
                         </div>
                     </header>
 
-                    {/* Inputs */}
-                    {/* Reduced padding p-6 to p-4 to fix clipped content */}
+                    {/* ===== INPUTS ===== */}
                     <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-4 mb-6 border border-slate-100 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -mr-16 -mt-16 opacity-30 pointer-events-none" style={{backgroundColor: result.color}}></div>
-                        <InputCard label="Chiều cao" icon={Ruler} value={height} unit="cm" min={100} max={250} onChange={setHeight} color={result.color} />
+                        <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -mr-16 -mt-16 opacity-30 pointer-events-none"
+                             style={{backgroundColor: result.color}}></div>
+                        <InputCard label="Chiều cao" icon={Ruler} value={height} unit="cm"
+                                   min={100} max={250} step={0.5} onChange={setHeight} color={result.color} />
                         <div className="h-px bg-slate-100 mb-6"></div>
-                        <InputCard label="Cân nặng" icon={Weight} value={weight} unit="kg" min={30} max={200} onChange={setWeight} color={result.color} />
+                        <InputCard label="Cân nặng" icon={Weight} value={weight} unit="kg"
+                                   min={30} max={200} step={0.5} onChange={setWeight} color={result.color} />
                     </div>
 
-                    {/* Result */}
+                    {/* ===== RESULT ===== */}
                     <div className="bg-slate-800 text-white rounded-3xl p-6 shadow-2xl relative overflow-hidden transition-all duration-500 transform">
-                        <div className="absolute inset-0 bg-gradient-to-br from-transparent to-slate-900 opacity-80" style={{backgroundColor: result.color}}></div>
+                        <div className="absolute inset-0 bg-gradient-to-br from-transparent to-slate-900 opacity-80"
+                             style={{backgroundColor: result.color}}></div>
                         <div className="relative z-10 flex flex-col items-center text-center">
-                            <button onClick={() => setShowCitation(true)} className="inline-flex items-center gap-1 bg-white/10 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 backdrop-blur-md border border-white/10 hover:bg-white/20 transition-colors">
+                            <button onClick={() => setShowCitation(true)}
+                                    className="inline-flex items-center gap-1 bg-white/10 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 backdrop-blur-md border border-white/10 hover:bg-white/20 transition-colors"
+                                    aria-label="Xem tiêu chuẩn Y khoa">
                                 <Info size={12} /> Chuẩn Châu Á
                             </button>
-                            <span className="text-7xl font-black tracking-tighter drop-shadow-lg mb-1">{result.bmi}</span>
-                            <span className="text-sm font-medium opacity-60 uppercase tracking-widest mb-6">kg/m²</span>
-                            <div className="text-xl font-bold bg-white px-6 py-3 rounded-2xl shadow-lg transition-all min-w-[200px]" style={{color: result.color}}>
+                            <span className="text-7xl font-black tracking-tighter drop-shadow-lg mb-1" aria-live="polite">
+                                {animatedBmi}
+                            </span>
+                            <span className="text-sm font-medium opacity-60 uppercase tracking-widest mb-1">kg/m²</span>
+
+                            {/* Ideal Weight */}
+                            <p className="text-xs opacity-70 mb-4">
+                                Lý tưởng: <strong>{idealWeight.min} – {idealWeight.max} kg</strong>
+                            </p>
+
+                            <div className="text-xl font-bold bg-white px-6 py-3 rounded-2xl shadow-lg transition-all min-w-[200px] mb-4"
+                                 style={{color: result.color}}>
                                 {result.category}
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-3">
+                                <button onClick={handleSave}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all ${
+                                            saveFlash
+                                                ? 'bg-green-400 text-white scale-105'
+                                                : 'bg-white/15 text-white hover:bg-white/25 border border-white/10'
+                                        }`}>
+                                    <Save size={14} /> {saveFlash ? 'Đã lưu ✓' : 'Lưu kết quả'}
+                                </button>
+                                <button onClick={handleShare}
+                                        className="flex items-center gap-2 bg-white/15 text-white px-4 py-2.5 rounded-xl font-bold text-xs hover:bg-white/25 transition-all border border-white/10">
+                                    <Share2 size={14} /> Chia sẻ
+                                </button>
                             </div>
                         </div>
                     </div>
 
-                    {/* Scale & Advice */}
+                    {/* ===== SCALE & ADVICE ===== */}
                     <div className="mt-6 w-full animate-slide-up">
                         <BmiScale bmi={result.bmi} activeColor={result.color} />
 
                         <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex gap-4 items-start">
-                            <div className="bg-blue-100 p-2 rounded-lg text-blue-600 flex-shrink-0"><Lightbulb size={20} /></div>
+                            <div className="bg-blue-100 p-2 rounded-lg text-blue-600 flex-shrink-0">
+                                <Lightbulb size={20} aria-hidden="true" />
+                            </div>
                             <div>
                                 <h4 className="font-bold text-blue-800 text-sm mb-1 uppercase">Lời khuyên</h4>
                                 <p className="text-sm text-slate-600 leading-relaxed">{result.advice}</p>
@@ -277,22 +747,48 @@
                         </div>
                     </div>
 
+                    {/* ===== HISTORY ===== */}
+                    <HistorySection
+                        history={history}
+                        onDelete={(i) => setHistory(removeEntryFromHistory(i))}
+                        onClear={() => setHistory(clearAllHistory())}
+                        activeColor={result.color}
+                    />
+
+                    {/* ===== FOOTER ===== */}
                     <div className="mt-8 text-center opacity-30 pb-4">
                         <p className="text-[10px] font-bold uppercase tracking-widest">© 2026 Dr. Nguyen Minh Tam</p>
                     </div>
 
-                    {/* Modal Info */}
+                    {/* ===== CITATION MODAL ===== */}
                     {showCitation && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowCitation(false)}>
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+                             onClick={() => setShowCitation(false)} role="dialog" aria-modal="true">
                             <div className="bg-white rounded-3xl p-6 w-full max-w-sm relative shadow-2xl" onClick={e => e.stopPropagation()}>
-                                <button onClick={() => setShowCitation(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X size={24}/></button>
-                                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Info className="text-green-500"/> Tiêu chuẩn Y khoa</h3>
+                                <button onClick={() => setShowCitation(false)}
+                                        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+                                        aria-label="Đóng">
+                                    <X size={24}/>
+                                </button>
+                                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                    <Info className="text-green-500"/> Tiêu chuẩn Y khoa
+                                </h3>
                                 <ul className="space-y-3 text-sm text-slate-600 mb-6">
-                                    <li className="flex justify-between border-b border-dashed border-slate-100 pb-2"><span>Nhẹ cân</span><strong className="text-blue-500">&lt; 18.5</strong></li>
-                                    <li className="flex justify-between border-b border-dashed border-slate-100 pb-2"><span>Bình thường</span><strong className="text-green-500">18.5 - 22.9</strong></li>
-                                    <li className="flex justify-between border-b border-dashed border-slate-100 pb-2"><span>Thừa cân</span><strong className="text-yellow-500">23 - 24.9</strong></li>
-                                    <li className="flex justify-between border-b border-dashed border-slate-100 pb-2"><span>Béo phì độ I</span><strong className="text-orange-500">25 - 29.9</strong></li>
-                                    <li className="flex justify-between border-b border-dashed border-slate-100 pb-2"><span>Béo phì độ II</span><strong className="text-red-500">&ge; 30</strong></li>
+                                    <li className="flex justify-between border-b border-dashed border-slate-100 pb-2">
+                                        <span>Nhẹ cân</span><strong className="text-blue-500">&lt; 18.5</strong>
+                                    </li>
+                                    <li className="flex justify-between border-b border-dashed border-slate-100 pb-2">
+                                        <span>Bình thường</span><strong className="text-green-500">18.5 - 22.9</strong>
+                                    </li>
+                                    <li className="flex justify-between border-b border-dashed border-slate-100 pb-2">
+                                        <span>Thừa cân</span><strong className="text-yellow-500">23 - 24.9</strong>
+                                    </li>
+                                    <li className="flex justify-between border-b border-dashed border-slate-100 pb-2">
+                                        <span>Béo phì độ I</span><strong className="text-orange-500">25 - 29.9</strong>
+                                    </li>
+                                    <li className="flex justify-between border-b border-dashed border-slate-100 pb-2">
+                                        <span>Béo phì độ II</span><strong className="text-red-500">&ge; 30</strong>
+                                    </li>
                                 </ul>
                                 <p className="text-[10px] text-slate-400 italic bg-slate-50 p-3 rounded-xl">
                                     Nguồn: The Asia-Pacific perspective: redefining obesity and its treatment. IDI & WPRO, 2000.
@@ -300,6 +796,9 @@
                             </div>
                         </div>
                     )}
+
+                    {/* ===== ONBOARDING ===== */}
+                    {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
                 </div>
             );
         };
@@ -320,9 +819,9 @@
 
             // 2. Generate Manifest (Essential for WebAPK/Native Uninstall capability)
             const manifest = {
-                "name": "BMI Pro",
+                "name": "BMI Pro - Theo Dõi Sức Khỏe",
                 "short_name": "BMI Pro",
-                "id": "bmi-pro-pwa-v1", 
+                "id": "bmi-pro-pwa-v1",
                 "start_url": ".",
                 "scope": ".",
                 "display": "standalone",
@@ -337,19 +836,42 @@
             const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
             document.getElementById('manifest-placeholder').href = URL.createObjectURL(manifestBlob);
 
-            // 3. Register Service Worker (Required for "Add to Home Screen" to trigger WebAPK install)
+            // 3. Register Service Worker with Stale-While-Revalidate cache strategy
             if ('serviceWorker' in navigator) {
+                const CACHE_NAME = 'bmi-pro-v2';
                 const swCode = `
+                    const CACHE_NAME = '${CACHE_NAME}';
+
                     self.addEventListener('install', (e) => self.skipWaiting());
-                    self.addEventListener('activate', (e) => self.clients.claim());
+
+                    self.addEventListener('activate', (e) => {
+                        e.waitUntil(
+                            caches.keys().then(names =>
+                                Promise.all(names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n)))
+                            )
+                        );
+                        self.clients.claim();
+                    });
+
                     self.addEventListener('fetch', (e) => {
-                        e.respondWith(fetch(e.request));
+                        e.respondWith(
+                            caches.match(e.request).then(cached => {
+                                const fetchPromise = fetch(e.request).then(response => {
+                                    if (response && response.status === 200) {
+                                        const clone = response.clone();
+                                        caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+                                    }
+                                    return response;
+                                }).catch(() => cached);
+                                return cached || fetchPromise;
+                            })
+                        );
                     });
                 `;
                 const swBlob = new Blob([swCode], {type: 'application/javascript'});
                 navigator.serviceWorker.register(URL.createObjectURL(swBlob), { scope: '.' })
-                    .then(() => console.log('SW Registered'))
-                    .catch(err => console.error('SW Error:', err));
+                    .then(() => console.log('✅ Service Worker registered with cache'))
+                    .catch(err => console.error('❌ SW Error:', err));
             }
         })();
     </script>
