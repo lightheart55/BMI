@@ -93,6 +93,11 @@
 
       /* Recharts custom tooltip */
       .custom-tooltip { background: white; border-radius: 12px; padding: 10px 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
+      @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+      .animate-shake { animation: shake 0.4s ease-in-out; }
+      .military-range { -webkit-appearance: none; width: 100%; background: transparent; }
+      .military-range::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: #fbbf24; border: 3px solid #065f46; cursor: pointer; margin-top: -8px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
+      .military-range::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; border-radius: 2px; }
     </style>
 </head>
 <body class="min-h-screen bg-slate-50 py-6 px-4 font-sans text-slate-800 flex flex-col items-center">
@@ -102,7 +107,7 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useMemo, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { Activity, Download, Info, X, Minus, Plus, Ruler, Weight, Lightbulb, HelpCircle, Save, Share2, Trash2, ChevronRight, ChevronLeft, Smartphone, TrendingUp } from 'lucide-react';
+        import { Activity, Download, Info, X, Minus, Plus, Ruler, Weight, Lightbulb, HelpCircle, Save, Share2, Trash2, ChevronRight, ChevronLeft, Smartphone, TrendingUp, Shield, Lock, User } from 'lucide-react';
         import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
         // ============================================================
@@ -145,6 +150,64 @@
                 min: parseFloat((18.5 * h * h).toFixed(1)),
                 max: parseFloat((23 * h * h).toFixed(1))
             };
+        };
+
+        // ============================================================
+        // MILITARY HEALTH CLASSIFICATION (TT 105/2023/TT-BQP & TT 68/2025/TT-BQP)
+        // ============================================================
+        const classifyMilitaryHealth = (gender, height, weight, chestCircumference, bmi) => {
+            let heightScore, weightScore, chestScore = null, bmiScore;
+            if (gender === 'male') {
+                if (height >= 163) heightScore = 1;
+                else if (height >= 160) heightScore = 2;
+                else if (height >= 157) heightScore = 3;
+                else if (height >= 155) heightScore = 4;
+                else if (height >= 153) heightScore = 5;
+                else heightScore = 6;
+            } else {
+                if (height >= 154) heightScore = 1;
+                else if (height >= 152) heightScore = 2;
+                else if (height >= 150) heightScore = 3;
+                else if (height >= 148) heightScore = 4;
+                else if (height >= 147) heightScore = 5;
+                else heightScore = 6;
+            }
+            if (gender === 'male') {
+                if (weight >= 51) weightScore = 1;
+                else if (weight >= 47) weightScore = 2;
+                else if (weight >= 43) weightScore = 3;
+                else if (weight >= 41) weightScore = 4;
+                else if (weight >= 40) weightScore = 5;
+                else weightScore = 6;
+            } else {
+                if (weight >= 48) weightScore = 1;
+                else if (weight >= 44) weightScore = 2;
+                else if (weight >= 42) weightScore = 3;
+                else if (weight >= 40) weightScore = 4;
+                else if (weight >= 38) weightScore = 5;
+                else weightScore = 6;
+            }
+            if (gender === 'male') {
+                if (chestCircumference >= 81) chestScore = 1;
+                else if (chestCircumference >= 78) chestScore = 2;
+                else if (chestCircumference >= 75) chestScore = 3;
+                else if (chestCircumference >= 73) chestScore = 4;
+                else if (chestCircumference >= 71) chestScore = 5;
+                else chestScore = 6;
+            }
+            if (bmi >= 18.5 && bmi <= 24.9) bmiScore = 1;
+            else if (bmi >= 25 && bmi <= 26.9) bmiScore = 2;
+            else if (bmi >= 27 && bmi <= 29.9) bmiScore = 3;
+            else if (bmi < 18.5 || (bmi >= 30 && bmi <= 34.9)) bmiScore = 4;
+            else if (bmi >= 35 && bmi <= 39.9) bmiScore = 5;
+            else bmiScore = 6;
+            const scores = [heightScore, weightScore, bmiScore];
+            if (chestScore !== null) scores.push(chestScore);
+            const overallClass = Math.max(...scores);
+            const bmiEligible = bmi >= 18.0 && bmi <= 29.9;
+            const healthEligible = overallClass <= 3;
+            const eligible = bmiEligible && healthEligible;
+            return { heightScore, weightScore, chestScore, bmiScore, overallClass, bmiEligible, healthEligible, eligible };
         };
 
         // ============================================================
@@ -384,7 +447,7 @@
 
             return (
                 <div className="mb-6" role="group" aria-label={`Nhập ${label}`}>
-                    <div className="flex justify-between items-end mb-4">
+                    <div className="flex justify-between items-end mb-1">
                         <label className="flex items-center gap-2 text-sm font-bold text-slate-500 uppercase tracking-wider">
                             <Icon size={16} aria-hidden="true" /> {label}
                         </label>
@@ -402,6 +465,7 @@
                             <span className="text-sm font-bold opacity-60">{unit}</span>
                         </div>
                     </div>
+                    <p className="text-[10px] text-slate-300 mb-3 italic">💡 Nhấn vào số để gõ · Kéo thanh trượt · Nhấn ➖ ➕ để tăng giảm {stepSize}</p>
                     <div className="flex items-center gap-2">
                         <button onClick={() => nudge(-1)}
                                 className="w-10 h-10 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-slate-100 active:scale-90 transition-all"
@@ -583,6 +647,225 @@
         };
 
         // ============================================================
+        // PRO PASSWORD MODAL
+        // ============================================================
+        const ProPasswordModal = ({ onClose, onUnlock }) => {
+            const [pw, setPw] = useState('');
+            const [err, setErr] = useState(false);
+            const [shake, setShake] = useState(false);
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (pw === 'Tutimhieu') {
+                    onUnlock();
+                    onClose();
+                } else {
+                    setErr(true);
+                    setShake(true);
+                    setTimeout(() => setShake(false), 500);
+                }
+            };
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true">
+                    <div className={`bg-white rounded-3xl p-6 w-full max-w-sm relative shadow-2xl ${shake ? 'animate-shake' : ''}`} onClick={e => e.stopPropagation()}>
+                        <button onClick={onClose} className="absolute top-4 right-4 text-slate-300 hover:text-slate-500 transition-colors" aria-label="Đóng"><X size={20} /></button>
+                        <div className="flex justify-center mb-4 mt-2">
+                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 flex items-center justify-center shadow-lg shadow-emerald-900/30">
+                                <Shield size={30} className="text-yellow-400" />
+                            </div>
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-800 text-center mb-1">Tra cứu TT 105 & 68</h3>
+                        <p className="text-xs text-slate-400 text-center mb-5">Nhập mật khẩu để mở khóa tính năng tự động tra cứu phân loại thể lực theo Thông tư 105/2023 & 68/2025</p>
+                        <form onSubmit={handleSubmit}>
+                            <input type="password" value={pw} onChange={e => { setPw(e.target.value); setErr(false); }}
+                                   placeholder="Nhập mật khẩu..." autoFocus
+                                   className={`w-full px-4 py-3 rounded-xl border-2 text-sm font-medium text-center transition-all focus:outline-none ${err ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-200 focus:border-emerald-500 bg-slate-50'}`} />
+                            {err && <p className="text-xs text-red-500 text-center mt-2 font-medium">❌ Mật khẩu không đúng</p>}
+                            <button type="submit" className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-emerald-700 to-emerald-900 text-white font-bold text-sm hover:shadow-lg hover:shadow-emerald-900/30 transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
+                                <Lock size={16} /> Mở khóa
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============================================================
+        // MILITARY TABLE MODAL
+        // ============================================================
+        const MilitaryTableModal = ({ onClose }) => {
+            const rows = [
+                { c:1, mh:'≥ 163', mw:'≥ 51', mc:'≥ 81', fh:'≥ 154', fw:'≥ 48', bmi:'18,5 – 24,9' },
+                { c:2, mh:'160–162', mw:'47–50', mc:'78–80', fh:'152–153', fw:'44–47', bmi:'25 – 26,9' },
+                { c:3, mh:'157–159', mw:'43–46', mc:'75–77', fh:'150–151', fw:'42–43', bmi:'27 – 29,9' },
+                { c:4, mh:'155–156', mw:'41–42', mc:'73–74', fh:'148–149', fw:'40–41', bmi:'<18,5 hoặc 30–34,9' },
+                { c:5, mh:'153–154', mw:'40', mc:'71–72', fh:'147', fw:'38–39', bmi:'35 – 39,9' },
+                { c:6, mh:'≤ 152', mw:'≤ 39', mc:'≤ 70', fh:'≤ 146', fw:'≤ 37', bmi:'≥ 40' },
+            ];
+            const cc = ['','#16a34a','#2563eb','#ca8a04','#ea580c','#dc2626','#7f1d1d'];
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-sm animate-fade-in" onClick={onClose} role="dialog" aria-modal="true">
+                    <div className="bg-white rounded-3xl p-5 w-full max-w-md max-h-[90vh] overflow-y-auto relative shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <button onClick={onClose} className="absolute top-3 right-3 text-slate-300 hover:text-slate-500 transition-colors" aria-label="Đóng"><X size={20} /></button>
+                        <div className="flex items-center gap-2 mb-3">
+                            <Shield size={20} className="text-emerald-700" />
+                            <h3 className="text-base font-bold text-slate-800">Bảng phân loại thể lực</h3>
+                        </div>
+                        <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-3">Phụ lục I – Thông tư 105/2023/TT-BQP</p>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">👨 Nam</p>
+                        <div className="overflow-x-auto mb-3 rounded-xl border border-slate-100">
+                            <table className="w-full text-[11px]">
+                                <thead><tr className="bg-emerald-50 text-emerald-800"><th className="px-2 py-1.5 text-left font-bold">Loại</th><th className="px-2 py-1.5 text-center font-bold">Cao (cm)</th><th className="px-2 py-1.5 text-center font-bold">Nặng (kg)</th><th className="px-2 py-1.5 text-center font-bold">V.ngực (cm)</th></tr></thead>
+                                <tbody>{rows.map(r => (<tr key={'m'+r.c} className="border-t border-slate-50 hover:bg-slate-50"><td className="px-2 py-1.5"><span className="inline-flex items-center justify-center w-5 h-5 rounded text-white text-[10px] font-bold" style={{backgroundColor:cc[r.c]}}>{r.c}</span></td><td className="px-2 py-1.5 text-center text-slate-600">{r.mh}</td><td className="px-2 py-1.5 text-center text-slate-600">{r.mw}</td><td className="px-2 py-1.5 text-center text-slate-600">{r.mc}</td></tr>))}</tbody>
+                            </table>
+                        </div>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">👩 Nữ</p>
+                        <div className="overflow-x-auto mb-3 rounded-xl border border-slate-100">
+                            <table className="w-full text-[11px]">
+                                <thead><tr className="bg-pink-50 text-pink-800"><th className="px-2 py-1.5 text-left font-bold">Loại</th><th className="px-2 py-1.5 text-center font-bold">Cao (cm)</th><th className="px-2 py-1.5 text-center font-bold">Nặng (kg)</th></tr></thead>
+                                <tbody>{rows.map(r => (<tr key={'f'+r.c} className="border-t border-slate-50 hover:bg-slate-50"><td className="px-2 py-1.5"><span className="inline-flex items-center justify-center w-5 h-5 rounded text-white text-[10px] font-bold" style={{backgroundColor:cc[r.c]}}>{r.c}</span></td><td className="px-2 py-1.5 text-center text-slate-600">{r.fh}</td><td className="px-2 py-1.5 text-center text-slate-600">{r.fw}</td></tr>))}</tbody>
+                            </table>
+                        </div>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">📊 BMI (Nam & Nữ)</p>
+                        <div className="overflow-x-auto mb-4 rounded-xl border border-slate-100">
+                            <table className="w-full text-[11px]">
+                                <thead><tr className="bg-blue-50 text-blue-800"><th className="px-2 py-1.5 text-left font-bold">Loại</th><th className="px-2 py-1.5 text-center font-bold">BMI (kg/m²)</th></tr></thead>
+                                <tbody>{rows.map(r => (<tr key={'b'+r.c} className="border-t border-slate-50 hover:bg-slate-50"><td className="px-2 py-1.5"><span className="inline-flex items-center justify-center w-5 h-5 rounded text-white text-[10px] font-bold" style={{backgroundColor:cc[r.c]}}>{r.c}</span></td><td className="px-2 py-1.5 text-center text-slate-600">{r.bmi}</td></tr>))}</tbody>
+                            </table>
+                        </div>
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3">
+                            <p className="text-xs font-bold text-amber-800 mb-1">⚠ Không gọi nhập ngũ (TT 68/2025/TT-BQP)</p>
+                            <ul className="text-[11px] text-slate-600 space-y-0.5 list-disc list-inside">
+                                <li>BMI nhỏ hơn 18,0 hoặc lớn hơn 29,9</li>
+                                <li>Cận thị lớn hơn 1,5 diop, viễn thị các mức độ</li>
+                            </ul>
+                        </div>
+                        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                            <p className="text-xs font-bold text-blue-800 mb-1">📋 Phương pháp phân loại (Điều 9 – TT 105/2023)</p>
+                            <ul className="text-[11px] text-slate-600 space-y-0.5 list-disc list-inside">
+                                <li>Điểm 1: Rất tốt → Loại 1: Tất cả chỉ tiêu điểm 1</li>
+                                <li>Điểm 2: Tốt → Loại 2: Có ít nhất 1 chỉ tiêu điểm 2</li>
+                                <li>Điểm 3: Khá → Loại 3: Có ít nhất 1 chỉ tiêu điểm 3</li>
+                                <li>Điểm 4: Trung bình / Điểm 5: Kém / Điểm 6: Rất kém</li>
+                                <li>Phân loại chung = điểm cao nhất trong các chỉ tiêu</li>
+                            </ul>
+                        </div>
+                        <p className="text-[10px] text-slate-400 italic mt-3 text-center">Căn cứ: Phụ lục I – TT 105/2023/TT-BQP & Điều 1 – TT 68/2025/TT-BQP</p>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============================================================
+        // MILITARY SECTION COMPONENT
+        // ============================================================
+        const MilitarySection = ({ height, weight, bmi }) => {
+            const [gender, setGender] = useState('male');
+            const [chest, setChest] = useState(80);
+            const [showTable, setShowTable] = useState(false);
+            const mil = useMemo(() => classifyMilitaryHealth(gender, height, weight, chest, bmi), [gender, height, weight, chest, bmi]);
+            const sLabels = ['', 'Rất tốt', 'Tốt', 'Khá', 'Trung bình', 'Kém', 'Rất kém'];
+            const sColors = ['', '#16a34a', '#2563eb', '#ca8a04', '#ea580c', '#dc2626', '#7f1d1d'];
+
+            const ScoreRow = ({ label, score, val, unit }) => (
+                <div className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-sm" style={{backgroundColor: sColors[score]}}>{score}</div>
+                        <div><span className="text-sm font-semibold text-slate-700">{label}</span><span className="text-xs text-slate-400 ml-1.5">{val} {unit}</span></div>
+                    </div>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{color: sColors[score], backgroundColor: sColors[score] + '15'}}>{sLabels[score]}</span>
+                </div>
+            );
+
+            return (
+                <div className="mt-6 animate-slide-up">
+                    <div className="bg-gradient-to-br from-emerald-900 via-emerald-800 to-green-950 rounded-3xl p-5 shadow-2xl relative overflow-hidden mb-4">
+                        <div className="absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl -mr-20 -mt-20 opacity-15 bg-yellow-400 pointer-events-none"></div>
+                        <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full blur-3xl -ml-16 -mb-16 opacity-10 bg-emerald-300 pointer-events-none"></div>
+                        <div className="absolute top-4 right-4 opacity-[0.04] pointer-events-none"><Shield size={100} /></div>
+                        <div className="relative z-10">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                    <Shield size={16} className="text-yellow-400" />
+                                    <h3 className="text-xs font-bold text-emerald-200 uppercase tracking-wider">Tra cứu TT 105 & 68</h3>
+                                </div>
+                                <button onClick={() => setShowTable(true)} className="text-[10px] font-bold text-emerald-400/60 hover:text-emerald-200 transition-colors flex items-center gap-1">
+                                    <Info size={12} /> Bảng phân loại
+                                </button>
+                            </div>
+                            <div className="bg-amber-400/10 border border-amber-400/20 rounded-xl px-3 py-2 mb-4">
+                                <p className="text-[10px] text-amber-200/90 leading-relaxed text-center">⚖️ <strong>Miễn trừ trách nhiệm:</strong> Đây chỉ là công cụ tính toán tự động dựa trên số liệu nhập vào. Kết quả <strong>hoàn toàn không có giá trị pháp lý</strong> và không thay thế kết luận của Hội đồng khám sức khỏe.</p>
+                            </div>
+                            <div className="flex gap-2 mb-4">
+                                {['male', 'female'].map(g => (
+                                    <button key={g} onClick={() => setGender(g)}
+                                            className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${gender === g ? 'bg-white/20 text-white border border-white/30 shadow-lg' : 'bg-white/5 text-emerald-300/40 border border-transparent hover:bg-white/10'}`}>
+                                        <User size={14} /> {g === 'male' ? 'Nam' : 'Nữ'}
+                                    </button>
+                                ))}
+                            </div>
+                            {gender === 'male' && (
+                                <div className="mb-5 bg-white/5 rounded-2xl p-3 border border-white/10">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-bold text-emerald-300/70 uppercase tracking-wider">Vòng ngực</span>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => setChest(Math.max(60, parseFloat((chest - 0.5).toFixed(1))))} className="w-7 h-7 rounded-lg bg-white/10 text-emerald-300 flex items-center justify-center hover:bg-white/20 active:scale-90 transition-all text-sm font-bold">−</button>
+                                            <div className="flex items-baseline gap-1">
+                                                <input type="number" value={chest} onChange={e => setChest(e.target.value)}
+                                                       onBlur={e => { let v = parseFloat(e.target.value); if(isNaN(v)) v=80; setChest(Math.max(60, Math.min(120, v))); }}
+                                                       className="w-16 bg-transparent text-xl font-extrabold text-white text-center focus:outline-none focus:bg-white/10 rounded px-1" />
+                                                <span className="text-xs text-emerald-300/50 font-bold">cm</span>
+                                            </div>
+                                            <button onClick={() => setChest(Math.min(120, parseFloat((chest + 0.5).toFixed(1))))} className="w-7 h-7 rounded-lg bg-white/10 text-emerald-300 flex items-center justify-center hover:bg-white/20 active:scale-90 transition-all text-sm font-bold">+</button>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-emerald-300/50 mb-2 italic text-right">💡 Nhấn vào số để gõ · Kéo thanh trượt</p>
+                                    <input type="range" min={60} max={120} step={0.5} value={chest} onChange={e => setChest(parseFloat(e.target.value))}
+                                           className="w-full h-1 rounded-lg appearance-none cursor-pointer military-range"
+                                           style={{background: `linear-gradient(to right, #fbbf24 ${((chest-60)/60)*100}%, rgba(255,255,255,0.15) ${((chest-60)/60)*100}%)`}} />
+                                </div>
+                            )}
+                            <div className="text-center py-2">
+                                <div className="inline-block px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mb-2 bg-white/10 text-emerald-200/70">Phân loại sức khỏe thể lực</div>
+                                <div className="text-6xl font-black text-white tracking-tight drop-shadow-lg">Loại {mil.overallClass}</div>
+                                <p className="text-sm text-emerald-200/60 mt-1 font-medium">{sLabels[mil.overallClass]}</p>
+                            </div>
+                            <div className={`text-center py-3 rounded-2xl mt-3 font-bold text-sm flex items-center justify-center gap-2 ${mil.eligible ? 'bg-green-400/20 text-green-300 border border-green-400/30' : 'bg-red-400/20 text-red-300 border border-red-400/30'}`}>
+                                {mil.eligible ? '✓ Đạt chuẩn theo quy định' : '✗ Không đạt chuẩn theo quy định'}
+                            </div>
+                            {!mil.eligible && (
+                                <div className="mt-2 space-y-1">
+                                    {!mil.bmiEligible && <p className="text-[11px] text-amber-300/80">⚠ BMI {bmi < 18.0 ? '< 18,0' : '> 29,9'} (Theo Điều 1 – TT 68/2025/TT-BQP)</p>}
+                                    {!mil.healthEligible && <p className="text-[11px] text-amber-300/80">⚠ Sức khỏe loại {mil.overallClass} (Theo Phụ lục I – TT 105/2023/TT-BQP)</p>}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                            <Activity size={12} /> Chi tiết điểm từng chỉ tiêu
+                        </h4>
+                        <div className="space-y-1">
+                            <ScoreRow label="Chiều cao" score={mil.heightScore} val={height} unit="cm" />
+                            <ScoreRow label="Cân nặng" score={mil.weightScore} val={weight} unit="kg" />
+                            {gender === 'male' && <ScoreRow label="Vòng ngực" score={mil.chestScore} val={chest} unit="cm" />}
+                            <ScoreRow label="Chỉ số BMI" score={mil.bmiScore} val={bmi} unit="kg/m²" />
+                        </div>
+                        <div className="mt-4 pt-3 border-t border-slate-100">
+                            <p className="text-[10px] text-slate-400 leading-relaxed">
+                                <strong>Lưu ý:</strong> Loại sức khỏe = điểm cao nhất (xấu nhất) trong các chỉ tiêu.
+                            </p>
+                            <p className="text-[10px] text-slate-400 italic mt-1">Căn cứ: Phụ lục I – TT 105/2023/TT-BQP & Điều 1 – TT 68/2025/TT-BQP</p>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-dashed border-slate-100">
+                            <p className="text-[10px] text-slate-300 text-center italic leading-relaxed">⚖️ <strong>Miễn trừ pháp lý:</strong> Tiện ích này không thu thập dữ liệu và chỉ tính toán tự động dựa trên quy định hiện hành. Chúng tôi không đưa ra kết luận nào về sức khỏe hay nghĩa vụ quân sự và hoàn toàn miễn trừ trách nhiệm pháp lý đối với việc sử dụng kết quả này.</p>
+                        </div>
+                    </div>
+                    {showTable && <MilitaryTableModal onClose={() => setShowTable(false)} />}
+                </div>
+            );
+        };
+
+        // ============================================================
         // MAIN APP COMPONENT
         // ============================================================
         const App = () => {
@@ -593,6 +876,15 @@
             const [showOnboarding, setShowOnboarding] = useState(false);
             const [history, setHistory] = useState(loadHistory);
             const [saveFlash, setSaveFlash] = useState(false);
+            const [proUnlocked, setProUnlocked] = useState(false);
+            const [showProModal, setShowProModal] = useState(false);
+            const [showMilitary, setShowMilitary] = useState(false);
+            const [showAdPopup, setShowAdPopup] = useState(false);
+
+            useEffect(() => {
+                const timer = setTimeout(() => setShowAdPopup(true), 1500);
+                return () => clearTimeout(timer);
+            }, []);
 
             const result = useMemo(() => calculateAsianBmi(weight, height), [weight, height]);
             const idealWeight = useMemo(() => getIdealWeight(height), [height]);
@@ -664,6 +956,11 @@
                             </div>
                         </div>
                         <div className="flex gap-2">
+                            <button onClick={() => { if (proUnlocked) { setShowMilitary(!showMilitary); } else { setShowProModal(true); } }}
+                                    className={`h-10 rounded-xl shadow-sm flex items-center justify-center transition-all ${proUnlocked ? 'bg-gradient-to-r from-emerald-800 to-emerald-900 text-yellow-400 px-3 gap-1.5 hover:shadow-md hover:shadow-emerald-900/30' : 'bg-gradient-to-r from-emerald-700 to-emerald-900 text-yellow-400 px-3 gap-1.5 hover:shadow-lg hover:shadow-emerald-900/40 animate-pulse'}`}
+                                    aria-label="Tính năng Pro">
+                                {proUnlocked ? <><Shield size={14} /><span className="text-[10px] font-bold uppercase tracking-wider">{showMilitary ? 'Ẩn' : 'TT 105'}</span></> : <><Lock size={14} /><span className="text-[10px] font-bold uppercase tracking-wider">TT 105</span></>}
+                            </button>
                             <button onClick={() => setShowOnboarding(true)}
                                     className="w-10 h-10 rounded-xl bg-white shadow-sm text-slate-400 flex items-center justify-center hover:text-slate-600 hover:shadow-md transition-all"
                                     aria-label="Xem hướng dẫn sử dụng">
@@ -747,6 +1044,11 @@
                         </div>
                     </div>
 
+                    {/* ===== MILITARY SERVICE (PRO) ===== */}
+                    {proUnlocked && showMilitary && (
+                        <MilitarySection height={height} weight={weight} bmi={result.bmi} />
+                    )}
+
                     {/* ===== HISTORY ===== */}
                     <HistorySection
                         history={history}
@@ -755,8 +1057,25 @@
                         activeColor={result.color}
                     />
 
+                    {/* ===== FLOATING AD TOAST ===== */}
+                    {showAdPopup && (
+                        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-sm bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.2)] border border-blue-100 animate-slide-up flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-500/30">
+                                <span className="text-white text-lg font-bold text-center w-full leading-none mt-1">Z</span>
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-[11px] font-bold text-slate-800">Tư vấn</p>
+                                <p className="text-[10px] text-slate-500">Liên hệ Zalo: <strong className="text-blue-600">0939 942 781</strong></p>
+                                <p className="text-[10px] text-slate-400 italic">Dr. Nguyễn Minh Tâm – Tư vấn & phát triển ứng dụng</p>
+                            </div>
+                            <button onClick={() => setShowAdPopup(false)} className="text-slate-400 hover:text-slate-600 p-2 bg-slate-50 rounded-full transition-colors">
+                                <X size={16} />
+                            </button>
+                        </div>
+                    )}
+
                     {/* ===== FOOTER ===== */}
-                    <div className="mt-8 text-center opacity-30 pb-4">
+                    <div className="mt-4 text-center opacity-25 pb-4">
                         <p className="text-[10px] font-bold uppercase tracking-widest">© 2026 Dr. Nguyen Minh Tam</p>
                     </div>
 
@@ -799,6 +1118,9 @@
 
                     {/* ===== ONBOARDING ===== */}
                     {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
+
+                    {/* ===== PRO PASSWORD MODAL ===== */}
+                    {showProModal && <ProPasswordModal onClose={() => setShowProModal(false)} onUnlock={() => { setProUnlocked(true); setShowMilitary(true); }} />}
                 </div>
             );
         };
